@@ -20,7 +20,7 @@ uuid = { version = "=1.18.1", features = ["v4", "serde"] }
 sha2 = "=0.11.1"
 hex = "=0.4.3"
 subtle = "=2.6.1"
-reqwest = { version = "=0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "=0.12.28", default-features = false, features = ["json", "rustls-tls"] }
 tracing = "=0.1.41"
 tracing-subscriber = { version = "=0.3.20", features = ["fmt", "env-filter", "json"] }
 
