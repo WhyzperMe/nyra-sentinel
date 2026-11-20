@@ -1,0 +1,174 @@
+name: nyra-sentinel
+services:
+  sentinel:
+    image: nyra-sentinel:0.6.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    environment:
+      SENTINEL_BIND_ADDR: 0.0.0.0:8080
+      SENTINEL_DB_PATH: /var/lib/sentinel/sentinel.sqlite
+      SENTINEL_API_TOKEN_FILE: /run/secrets/api_token
+      SENTINEL_INGEST_TOKEN_FILE: /run/secrets/ingest_token
+      SENTINEL_HARNESS_READ_TOKEN_FILE: /run/secrets/harness_read_token
+      SENTINEL_HARNESS_REPORT_TOKEN_FILE: /run/secrets/harness_report_token
+      SENTINEL_RESPONSE_APPROVAL_TOKEN_FILE: /run/secrets/response_approval_token
+      SENTINEL_RESPONSE_EXECUTOR_TOKEN_FILE: /run/secrets/response_executor_token
+      SENTINEL_ADGUARD_ENABLED: ${SENTINEL_ADGUARD_ENABLED:-false}
+      SENTINEL_ADGUARD_URL: ${SENTINEL_ADGUARD_URL:-}
+      SENTINEL_ADGUARD_USERNAME: ${SENTINEL_ADGUARD_USERNAME:-}
+      SENTINEL_ADGUARD_PASSWORD_FILE: /run/secrets/adguard_password
+      SENTINEL_ADGUARD_CA_FILE: ${SENTINEL_ADGUARD_CA_FILE:-}
+      SENTINEL_ADGUARD_POLL_SECS: ${SENTINEL_ADGUARD_POLL_SECS:-30}
+      SENTINEL_ADGUARD_PAGE_LIMIT: ${SENTINEL_ADGUARD_PAGE_LIMIT:-200}
+      SENTINEL_ADGUARD_MAX_PAGES: ${SENTINEL_ADGUARD_MAX_PAGES:-15}
+      SENTINEL_ADGUARD_INITIAL_LOOKBACK_MINS: ${SENTINEL_ADGUARD_INITIAL_LOOKBACK_MINS:-15}
+      SENTINEL_CROWDSEC_ENABLED: ${SENTINEL_CROWDSEC_ENABLED:-false}
+      SENTINEL_CROWDSEC_URL: ${SENTINEL_CROWDSEC_URL:-}
+      SENTINEL_CROWDSEC_API_KEY_FILE: /run/secrets/crowdsec_api_key
+      SENTINEL_CROWDSEC_CA_FILE: ${SENTINEL_CROWDSEC_CA_FILE:-}
+      SENTINEL_CROWDSEC_POLL_SECS: ${SENTINEL_CROWDSEC_POLL_SECS:-30}
+      SENTINEL_CROWDSEC_MAX_DECISIONS: ${SENTINEL_CROWDSEC_MAX_DECISIONS:-3000}
+      SENTINEL_ALLOW_HTTP_UPSTREAMS: ${SENTINEL_ALLOW_HTTP_UPSTREAMS:-false}
+      SENTINEL_DETECTION_INTERVAL_SECS: ${SENTINEL_DETECTION_INTERVAL_SECS:-5}
+      SENTINEL_DETECTION_BATCH_SIZE: ${SENTINEL_DETECTION_BATCH_SIZE:-150}
+      SENTINEL_RULE_FIREWALL_BLOCKS: ${SENTINEL_RULE_FIREWALL_BLOCKS:-12}
+      SENTINEL_RULE_DNS_PER_MIN: ${SENTINEL_RULE_DNS_PER_MIN:-120}
+      SENTINEL_RULE_ADMIN_PROBES: ${SENTINEL_RULE_ADMIN_PROBES:-5}
+      SENTINEL_RULE_OUTBOUND_FANOUT: ${SENTINEL_RULE_OUTBOUND_FANOUT:-25}
+      SENTINEL_RULE_DNS_ANOMALY_MIN: ${SENTINEL_RULE_DNS_ANOMALY_MIN:-40}
+      SENTINEL_BASELINE_MIN_QUERIES: ${SENTINEL_BASELINE_MIN_QUERIES:-200}
+      RUST_LOG: info
+    volumes:
+      - ./data/sqlite:/var/lib/sentinel
+      - ./secrets:/run/secrets:ro
+      - ./pki/upstreams:/etc/sentinel/upstreams:ro
+    ports:
+      - "127.0.0.1:8765:8080/tcp"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/sentinel-server", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks: [telemetry_ingest, investigation_api, source_egress]
+  vector:
+    image: timberio/vector:0.62.0-debian@sha256:6266b1d35c844918ff1c48ea2ec4f57c2b0664c46f3e17fc2418d5dda1692068
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    depends_on:
+      sentinel:
+        condition: service_healthy
+    entrypoint: ["vector"]
+    command: ["--config", "/etc/vector/vector.yaml"]
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./secrets/ingest_token:/run/secrets/ingest_token:ro
+      - ./pki/vector:/etc/vector/tls:ro
+      - ./data/vector:/var/lib/vector
+    ports:
+      - "${SENTINEL_HOST_IP:?set in .env}:6514:6514/tcp"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "vector", "validate", "--no-environment", "/etc/vector/vector.yaml"]
+      interval: 1m
+      timeout: 15s
+      start_period: 20s
+      retries: 3
+    networks: [telemetry_ingest, syslog_ingress]
+  agent:
+    image: nyra-sentinel:0.6.0
+    profiles: ["agent"]
+    restart: "no"
+    init: true
+    user: "10001:10001"
+    entrypoint: ["/usr/local/bin/sentinel-agent"]
+    depends_on:
+      sentinel:
+        condition: service_healthy
+    environment:
+      SENTINEL_API_URL: http://sentinel:8080/
+      SENTINEL_OLLAMA_URL: ${SENTINEL_OLLAMA_URL:-http://ollama:11434/}
+      SENTINEL_OLLAMA_CA_FILE: ${SENTINEL_OLLAMA_CA_FILE:-}
+      SENTINEL_ALLOW_HTTP_MODEL: ${SENTINEL_ALLOW_HTTP_MODEL:-false}
+      SENTINEL_LLM_MODEL: ${SENTINEL_LLM_MODEL:-qwen3:4b}
+      SENTINEL_HARNESS_READ_TOKEN_FILE: /run/secrets/harness_read_token
+      SENTINEL_HARNESS_REPORT_TOKEN_FILE: /run/secrets/harness_report_token
+    volumes:
+      - ./secrets/harness_read_token:/run/secrets/harness_read_token:ro
+      - ./secrets/harness_report_token:/run/secrets/harness_report_token:ro
+      - ./pki/upstreams:/etc/sentinel/upstreams:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    networks: [investigation_api, local_model]
+  response-gateway:
+    image: nyra-sentinel:0.6.0
+    profiles: ["response"]
+    restart: "no"
+    init: true
+    user: "10001:10001"
+    entrypoint: ["/usr/local/bin/sentinel-respond"]
+    environment:
+      SENTINEL_API_URL: http://sentinel:8080/
+      SENTINEL_RESPONSE_EXECUTOR_TOKEN_FILE: /run/secrets/response_executor_token
+    volumes:
+      - ./secrets/response_executor_token:/run/secrets/response_executor_token:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 32
+    mem_limit: 128m
+    networks: [investigation_api]
+  ollama:
+    image: ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
+    profiles: ["ollama"]
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ollama_models:/root/.ollama
+    # No published port: available only to other containers on the private project network.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    networks: [local_model, ollama_download_egress]
+networks:
+  syslog_ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+  telemetry_ingest:
+    driver: bridge
+    internal: true
+  investigation_api:
+    driver: bridge
+    internal: true
+  local_model:
+    driver: bridge
+    internal: true
+  source_egress:
+    driver: bridge
+  ollama_download_egress:
+    driver: bridge
+
+volumes:
+  ollama_models:

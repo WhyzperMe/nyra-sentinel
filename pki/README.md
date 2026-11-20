@@ -1,0 +1,1 @@
+Generated private keys and certificates are deliberately omitted. Run scripts/bootstrap.sh on the Debian VM. NEVER commit/export the CA private key or send it to the firewall. Only the client certificate and its client private key belong on OPNsense.

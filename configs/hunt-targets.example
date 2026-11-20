@@ -1,0 +1,4 @@
+# Optional read-only scheduled investigation targets. No private IPs/hostnames in Git.
+# Each non-comment line: `ip <address>` or `domain <fqdn>` or `incident <uuid>`
+ip 203.0.113.7
+domain example.org

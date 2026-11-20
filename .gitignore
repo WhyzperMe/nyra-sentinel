@@ -1,0 +1,37 @@
+.env
+.env.*
+!.env.example
+pki/*
+!pki/README.md
+!pki/upstreams/
+pki/upstreams/*
+!pki/upstreams/README.md
+data/*
+!data/README.md
+secrets/*
+!secrets/README.md
+target/
+Cargo.lock.pending
+*.sqlite*
+*.db
+*.db-*
+*.key
+*.p12
+*.pfx
+*.log
+*.zip
+# Agent report exports and temporary build output
+reports/
+*.report.json
+__pycache__/
+.pytest_cache/
+# Operator-specific scheduled targets
+configs/hunt-targets.txt
+# Never commit local backups, manifests or pre-restore DB copies
+backups/
+*.pre-restore-*
+*.sqlite-wal
+*.sqlite-shm
+
+# Local release packages and validation artifacts
+/release/

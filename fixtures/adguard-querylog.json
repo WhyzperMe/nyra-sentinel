@@ -1,0 +1,7 @@
+{
+  "data": [
+    {"time":"2026-11-20T19:05:00Z","client":"192.168.1.101","question":{"name":"example.org.","type":"A"},"reason":"NotFilteredNotFound","status":"NOERROR"},
+    {"time":"2026-11-20T19:04:30Z","client":"192.168.1.103","question":{"name":"bad.example.","type":"AAAA"},"reason":"FilteredBlackList","status":"NOERROR"}
+  ],
+  "oldest":"2026-11-20T19:04:30Z"
+}

@@ -1,0 +1,4 @@
+[
+ {"id":121,"origin":"crowdsec","scenario":"crowdsecurity/http-probing","scope":"Ip","value":"203.0.113.77","type":"ban","duration":"15m0s"},
+ {"id":122,"origin":"crowdsec","scenario":"crowdsecurity/http-crawl-non_statics","scope":"Range","value":"198.51.100.0/24","type":"ban","duration":"4m0s"}
+]

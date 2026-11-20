@@ -1,0 +1,92 @@
+name: NYRA Sentinel CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rust:
+    name: Format, Clippy, unit and integration tests, release build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout pinned dependency
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.100.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.100.0
+      - name: Lockfile is mandatory
+        shell: bash
+        run: |
+          test -s Cargo.lock || { echo '::error::Cargo.lock is missing; generate, review and commit it before merging'; exit 1; }
+          cargo metadata --locked --format-version 1 >/dev/null
+      - name: Static and SQLite regression tests
+        shell: bash
+        run: |
+          python3 -m venv /tmp/nyra-ci-python
+          /tmp/nyra-ci-python/bin/pip install --disable-pip-version-check 'PyYAML==6.0.2'
+          PATH="/tmp/nyra-ci-python/bin:$PATH" bash scripts/verify-offline.sh
+      - name: Rustfmt
+        run: cargo fmt --all -- --check
+      - name: Clippy (warnings are errors)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Check all Rust targets
+        run: cargo check --locked --all-targets
+      - name: All unit and integration tests
+        run: cargo test --locked --all-targets
+      - name: Release build (server, agent, response gateway)
+        run: |
+          cargo build --locked --release --bins
+          for bin in sentinel-server sentinel-agent sentinel-respond; do test -x "target/release/$bin"; done
+      - name: RustSec dependency audit
+        run: |
+          cargo install cargo-audit --version 0.22.2 --locked
+          cargo audit
+  docker:
+    name: Production image, Compose, Vector mTLS and dashboard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Require locked dependencies
+        run: test -s Cargo.lock
+      - name: Validate Compose model
+        env:
+          SENTINEL_HOST_IP: 127.0.0.1
+        run: |
+          docker compose --env-file .env.example --profile '*' config --quiet
+          docker compose --env-file .env.example -f compose.yaml -f deploy/compose.remote-ollama.yaml --profile agent config --quiet
+      - name: Build production image
+        run: docker compose --env-file .env.example build sentinel
+      - name: Bootstrap loopback stack and validate native Vector config
+        run: |
+          sudo bash scripts/bootstrap.sh 127.0.0.1
+          sudo chmod 0640 .env
+          sudo chgrp "$(id -g)" .env
+          docker compose up -d --no-build --wait --wait-timeout 60 sentinel vector
+          docker compose exec -T vector vector validate --no-environment /etc/vector/vector.yaml
+      - name: Exercise the container pipeline and restart recovery
+        run: sudo python3 tests/compose_smoke.py
+      - name: Chromium dashboard smoke test
+        run: |
+          npm install --prefix "$RUNNER_TEMP/nyra-browser" --no-audit --no-fund --ignore-scripts playwright@1.61.1
+          "$RUNNER_TEMP/nyra-browser/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/nyra-browser/node_modules" \
+            NYRA_TEST_TOKEN="$(sudo cat secrets/api_token)" node tests/browser_smoke.cjs
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: sudo docker compose logs --tail=100 sentinel vector
+      - name: Stop isolated stack
+        if: always()
+        run: sudo docker compose --env-file .env.example down --remove-orphans

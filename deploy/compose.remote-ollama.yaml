@@ -1,0 +1,12 @@
+# OPTIONAL override for an Ollama server on another host.
+# Docker bridge networks are NOT an egress firewall. Restrict destination and
+# port with host/OPNsense policies before enabling this network.
+services:
+  agent:
+    networks:
+      - investigation_api
+      - local_model
+      - remote_model_egress
+networks:
+  remote_model_egress:
+    driver: bridge

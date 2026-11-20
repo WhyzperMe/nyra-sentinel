@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NYRA Sentinel — Whyzper.Me</title>
+<link rel="stylesheet" href="/ui/styles.css">
+<script src="/ui/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="shell">
+<aside class="sidebar" aria-label="Navigation">
+  <div class="brand"><span class="brandmark">N<span class="smallmark">.</span></span><div><strong>NYRA Sentinel</strong><small>by Whyzper.Me</small></div></div>
+  <div class="nav-group"><span class="nav-label">OPERATIONS</span>
+    <button class="nav active" aria-current="page" data-tab="overview">Overview</button>
+    <button class="nav" data-tab="events">Telemetry</button>
+    <button class="nav" data-tab="detections">Detections</button>
+    <button class="nav" data-tab="incidents">Incidents</button>
+    <button class="nav" data-tab="responses">Response proposals</button>
+  </div>
+  <div class="sidebar-bottom"><span class="status-dot" id="connection-dot"></span><span id="connection-label">Not connected</span><small class="version">v0.6.0 · Local-first</small></div>
+</aside>
+<main id="main">
+  <header class="topbar"><div><div class="eyebrow">SECURITY OPERATIONS</div><h1 id="page-title">Overview</h1></div><div class="top-actions"><span class="pill">READ-ONLY BY DEFAULT</span><button id="refresh" class="secondary">Refresh</button></div></header>
+  <section id="access" class="access-panel" aria-labelledby="access-title"><div><h2 id="access-title">Connect to Sentinel</h2><p>Enter the operator API token. It stays in this browser tab's memory and is not saved to disk or browser storage.</p></div><form id="connect-form"><label for="api-token">Operator API token</label><div class="connect-row"><input autocomplete="off" type="password" id="api-token" required minlength="32" placeholder="Paste your operator token"><button type="submit">Connect</button></div></form></section>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <div id="workspace" hidden>
+    <section id="overview-panel" class="view"><div class="metrics"><article class="metric"><span>Security events</span><strong id="total-events">—</strong></article><article class="metric"><span>Detections</span><strong id="total-detections">—</strong></article><article class="metric"><span>Open incidents</span><strong id="total-incidents">—</strong></article><article class="metric"><span>Ingestion age</span><strong id="ingest-age">—</strong></article></div><div class="two-cols"><section class="panel"><div class="panel-head"><h2>Recent incidents</h2><span>Latest 10</span></div><div id="overview-incidents" class="rows"></div></section><section class="panel"><div class="panel-head"><h2>Source health</h2><span>Last observed</span></div><div id="source-health" class="rows"></div></section></div></section>
+    <section id="events-panel" class="view" hidden><div class="panel"><div class="panel-head"><h2>Normalized events</h2><span>Max 50 per request</span></div><div id="events-table" class="table-scroll"></div><div class="pagination"><button class="secondary" data-next="events">Load older</button></div></div></section>
+    <section id="detections-panel" class="view" hidden><div class="panel"><div class="panel-head"><h2>Deterministic detections</h2><span>Evidence-backed</span></div><div id="detections-table" class="table-scroll"></div><div class="pagination"><button class="secondary" data-next="detections">Load older</button></div></div></section>
+    <section id="incidents-panel" class="view" hidden><div class="panel"><div class="panel-head"><h2>Incidents</h2><span>Investigator review required</span></div><div id="incidents-table" class="table-scroll"></div><div class="pagination"><button class="secondary" data-next="incidents">Load older</button></div></div></section>
+    <section id="responses-panel" class="view" hidden><div class="panel"><div class="panel-head"><h2>Controlled response</h2><span class="tag">SIMULATION ONLY</span></div><p class="hint">Every proposal requires recent matching event evidence, a separate approval credential and a dedicated simulation credential. No live firewall modification occurs in this release.</p><form id="response-form" class="response-form"><div><label for="response-target">External source IP</label><input id="response-target" placeholder="Public IP" required></div><div><label for="response-evidence">Evidence event UUID</label><input id="response-evidence" placeholder="Event UUID" required></div><div><label for="response-requester">Requester handle</label><input id="response-requester" placeholder="analyst-a" required></div><div><label for="response-duration">Duration (minutes)</label><input id="response-duration" type="number" min="5" max="1440" value="30" required></div><div class="wide"><label for="response-reason">Reason (20–1024 characters)</label><textarea id="response-reason" minlength="20" maxlength="1024" required placeholder="Describe observed evidence and proposed defensive purpose"></textarea></div><button class="wide" type="submit">Propose temporary block (not applied)</button></form></div><div class="panel"><div class="panel-head"><h2>Response queue</h2><span>Human approval required</span></div><div id="responses-table" class="table-scroll"></div><div class="pagination"><button class="secondary" data-next="responses">Load older</button></div></div></section>
+  </div>
+</main>
+</div>
+<dialog id="decision-dialog" aria-labelledby="decision-title"><form id="decision-form" method="dialog"><h2 id="decision-title">Review proposal</h2><p id="decision-description"></p><label for="decision-actor">Approver handle (different from requester)</label><input id="decision-actor" autocomplete="off" required><label for="decision-reason">Decision reason</label><textarea id="decision-reason" required minlength="12" maxlength="512"></textarea><label for="decision-token">Separate approval token</label><input id="decision-token" autocomplete="off" type="password" required><p id="decision-error" role="alert"></p><div class="dialog-actions"><button type="button" id="decision-cancel" class="secondary">Cancel</button><button type="submit" id="decision-confirm">Confirm</button></div></form></dialog>
+<footer>NYRA Sentinel · Whyzper.Me · Evidence first, human control always.</footer>
+</body></html>

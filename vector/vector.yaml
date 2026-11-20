@@ -1,0 +1,60 @@
+# Vector 0.62.0: mTLS syslog, stable per-reception delivery identity, disk-buffered sink.
+data_dir: /var/lib/vector
+secret:
+  sentinel:
+    type: directory
+    path: /run/secrets
+    remove_trailing_whitespace: true
+# Diagnostic endpoint exists only inside the Vector container, never published.
+# Vector's observability API is unauthenticated; keep this bound to loopback.
+api:
+  enabled: true
+  address: "127.0.0.1:8686"
+sources:
+  opnsense_syslog:
+    type: syslog
+    address: "0.0.0.0:6514"
+    mode: tcp
+    # Leave room for worst-case JSON escaping within the collector's per-event limit.
+    max_length: 16384
+    connection_limit: 32
+    tls_handshake_timeout_secs: 10
+    tls:
+      enabled: true
+      crt_file: /etc/vector/tls/server.crt
+      key_file: /etc/vector/tls/server.key
+      ca_file: /etc/vector/tls/ca.crt
+      verify_certificate: true
+transforms:
+  with_delivery_id:
+    type: remap
+    inputs: [opnsense_syslog]
+    source: |
+      .sentinel_delivery_id = uuid_v4()
+sinks:
+  collector:
+    type: http
+    inputs: [with_delivery_id]
+    uri: http://sentinel:8080/internal/v1/ingest
+    method: post
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    auth:
+      strategy: bearer
+      token: "SECRET[sentinel.ingest_token]"
+    request:
+      headers:
+        Content-Type: application/x-ndjson
+      timeout_secs: 10
+    healthcheck:
+      enabled: false
+    batch:
+      max_events: 100
+      max_bytes: 131072
+      timeout_secs: 1
+    buffer:
+      type: disk
+      max_size: 536870912
+      when_full: block
